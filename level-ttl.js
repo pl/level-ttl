@@ -37,6 +37,7 @@ function startTtl (db, checkFrequency) {
     else
       createReadStream = db.createReadStream.bind(db)
 
+    var deletedKeys = [];
     createReadStream(query)
       .on('data', function (data) {
         // the value is the key!
@@ -46,6 +47,8 @@ function startTtl (db, checkFrequency) {
         subBatch.push({ type: 'del', key: prefixKey(db, key) })
         // the actual data that should expire now!
         batch.push({ type: 'del', key: key })
+
+        deletedKeys.push(key);
       })
       .on('error', db.emit.bind(db, 'error'))
       .on('end', function () {
@@ -66,8 +69,11 @@ function startTtl (db, checkFrequency) {
               batch
             , { keyEncoding: 'binary' }
             , function (err) {
-                if (err)
+                if (err) {
                   db.emit('error', err)
+                } else {
+                  db.emit('expired', deletedKeys)
+                }
               }
           )
         }
@@ -76,8 +82,11 @@ function startTtl (db, checkFrequency) {
               subBatch.concat(batch)
             , { keyEncoding: 'binary' }
             , function (err) {
-                if (err)
+                if (err) {
                   db.emit('error', err)
+                } else {
+                  db.emit('expired', deletedKeys)
+                }
               }
           )
         }
